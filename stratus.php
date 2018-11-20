@@ -169,24 +169,80 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 	}
 
 	/**
+	 * Array of callables (and filters) ...
+	 * @var array
+	 */
+	public $___callbacks = array();
+
+	/**
+	 * Retrieve a callback.
+	 * @param string $key
+	 * @return callable|Stratus
+	 */
+	public function getCallback( $key ) {
+		return (
+			$this->hasCallback($key)
+			? $this->___callbacks[ $key ]
+			: false
+		);
+	}
+
+	/**
+	 * Set a callback.
+	 * @param string $key
+	 * @param callable $callback
+	 * @return Stratus
+	 */
+	public function setCallback( $key, $callback ) {
+		$this->___callbacks[ $key ] = $callback;
+		return $this;
+	}
+
+	/**
+	 * Callback exists?
+	 * @param string $key
+	 * @return bool
+	 */
+	public function hasCallback( $key ) {
+		return array_key_exists($key, $this->___callbacks);
+	}
+
+	/**
+	 * Delete a callback.
+	 * @param string $key
+	 * @return Stratus
+	 */
+	public function deleteCallback( $key ) {
+		unset( $this->___callbacks[ $key ] );
+		return $this;
+	}
+
+	/**
 	 * __callStatic()
 	 * Loads dynamic or loaded functions from a static context w/o throwing pesky errors.
-	 * @syntax use BurningMoth\Stratus as Strat; Strat::era_[name of a dynamic or loaded function](...);
-	 * @syntax use BurningMoth\Stratus as Stratus; Stratus::[name of loaded function](...);
+	 * @syntax use BurningMoth\Stratus as Strat; Strat::us_[name of a dynamic or loaded function](...);
 	 */
 	public static function __callStatic( $name, $args ) {
 
 		global $tratus;
 
-		// prefixed with ::era_ ? calling a dynamic method in static context ...
+		// prefixed with ::us_ ? calling a dynamic method in static context ...
 		if ( stripos($name, 'us_') === 0 ) {
+
+			// static callback key ...
+			$key = 'strat::' . strtolower($name);
+
+			// has callback ? return from that now ...
+			if ( $callback = $tratus->getCallback($key) ) {
+				return call_user_func_array($callback, $args);
+			}
 
 			// parse out function name ...
 			$name = substr($name, 3);
 
 			// native method exists in object instance ? call it !
 			if ( method_exists($tratus, $name) ) {
-				return call_user_func_array([ $tratus, $name ], $args);
+				return call_user_func_array( $tratus->setCallback($key, [ $tratus, $name ])->getCallback($key), $args );
 			}
 
 		}
@@ -205,13 +261,36 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 		// function name ...
 		$name = strtolower($name);
 
-		// function namespaced name ...
-		$namespaced = '\\BurningMoth\\Stratus\\' . $name;
+		// recorded callback ? ...
+		if ( $callback = $this->getCallback($name) ) {
 
-		// function loaded ? call it now ...
-		if (
-			function_exists($namespaced)
-		) return call_user_func_array($namespaced, $args);
+			// cached callable ? call now ...
+			if (
+				is_callable($callback)
+			) return call_user_func_array($callback, $args);
+
+			// cached function filter ? filter it now ...
+			elseif(
+				is_string($callback)
+				&& strpos($callback, 'stratus:function') === 0
+			) return (
+				$callback == 'stratus:function'
+				? $this->filter($callback, null, $name, $args)
+				: $this->filter($callback, null, $args)
+			);
+
+			// bad ! kill it !!! ... move on ...
+			else {
+				trigger_error(sprintf('Stratus::%s() is NOT a valid callback!', $name), \E_USER_WARNING);
+				$this->deleteCallback( $name );
+			}
+
+		}
+
+		// namespaced function loaded ? call it now ...
+		elseif (
+			function_exists( $namespaced = '\\BurningMoth\\Stratus\\' . $name )
+		) return call_user_func_array( $this->setCallback($name, $namespaced)->getCallback($name), $args );
 
 		/**
 		 * Filter for dynamic function.
@@ -223,13 +302,16 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 		 */
 		elseif (
 			! is_null( $value = $this->filter('stratus:function-'.$name, null, $args) )
-		) return $value;
+		) {
+			$this->setCallback($name, 'stratus:function-'.$name);
+			return $value;
+		}
 
 		// load function, success ? then call it ...
 		elseif (
 			( include 'strato/function/' . $name . '.php' )
 			&& function_exists($namespaced)
-		) return call_user_func_array($namespaced, $args);
+		) return call_user_func_array( $this->setCallback($name, $namespaced)->getCallback($name), $args );
 
 		/**
 		 * Filter for dynamic function.
@@ -242,10 +324,13 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 		 */
 		elseif (
 			! is_null( $value = $this->filter('stratus:function', null, $name, $args) )
-		) return $value;
+		) {
+			$this->setCallback($name, 'stratus:function');
+			return $value;
+		}
 
 		// fail !
-		trigger_error('Function does not exist: ' . $name, \E_USER_ERROR);
+		trigger_error(sprintf('Stratus::%s() does not exist!', $name), \E_USER_ERROR);
 		return null;
 
 	}
@@ -698,13 +783,19 @@ if ( !class_exists(__NAMESPACE__.'\Stratus') ) {
 }
 
 /**
+ * Set global $tratus variable.
+ * @var Stratus
+ */
+$GLOBALS['tratus'] = Stratus::us();
+
+/**
  * Trigger any initialization callbacks.
  * @see strato/module/README.md
  */
 if (
 	isset($_ENV['STRATUS_CALLBACKS'])
 	&& is_array($_ENV['STRATUS_CALLBACKS'])
-) foreach ( $_ENV['STRATUS_CALLBACKS'] as $callback ) call_user_func($callback, Stratus::us());
+) foreach ( $_ENV['STRATUS_CALLBACKS'] as $callback ) call_user_func($callback, $GLOBALS['tratus']);
 
 // scrub Stratus environmental vars ...
 unset($_ENV['STRATUS_MODULES'], $_ENV['STRATUS_TRAITS'], $_ENV['STRATUS_CALLBACKS']);
@@ -713,4 +804,4 @@ unset($_ENV['STRATUS_MODULES'], $_ENV['STRATUS_TRAITS'], $_ENV['STRATUS_CALLBACK
  * return global $tratus instance.
  * @syntax $tratus = require 'stratus.php';
  */
-return Stratus::us();
+return $GLOBALS['tratus'];

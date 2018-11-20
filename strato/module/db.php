@@ -4,7 +4,7 @@
  */
 namespace BurningMoth\Stratus;
 
-// register trait to extend Optimera ...
+// register trait to extend Stratus ...
 $_ENV['STRATUS_TRAITS'][ __NAMESPACE__ . '\DB_Module' ] = array();
 trait DB_Module {
 
