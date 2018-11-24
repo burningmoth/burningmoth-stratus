@@ -25,18 +25,23 @@ if (
 
 
 /**
- * Stratus version
- * @var string|int|float
- */
-if ( ! defined(__NAMESPACE__.'\Stratus\VERSION') ) define(__NAMESPACE__.'\Stratus\VERSION', '1');
-
-
-/**
  * Stratus overloaded abstract single birth layer or "mother cloud"
  * Acts as a hub connecting and through which all things flow.
  * @see README.md
  */
 if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
+
+	/**
+	 * Stratus version
+	 * @var string|int|float
+	 */
+	const VERSION = 2;
+
+	/**
+	 * Stratus directory
+	 * @var string
+	 */
+	const DIR = __DIR__;
 
 	/**
 	 * Static method returning the $stratus global.
@@ -107,7 +112,13 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 	 * Paths (strata) to extended include path by.
 	 * @var array
 	 */
-	public $___extended_paths = array();
+	public $___extension_paths = array();
+
+	/**
+	 * Extended paths w/o original include path.
+	 * @var string
+	 */
+	public $___extension_path = '';
 
 	/**
 	 * Extend the Stratus pattern with another directory containing components.
@@ -123,23 +134,107 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 		if ( is_null($this->___include_path) ) $this->___include_path = get_include_path();
 
 		// load before others ...
-		if ( $prepend ) array_unshift( $this->___extended_paths, $dir );
+		if ( $prepend ) array_unshift( $this->___extension_paths, $dir );
 		// load after others ...
-		else array_push( $this->___extended_paths, $dir );
+		else array_push( $this->___extension_paths, $dir );
+
+		// process extension paths ...
+		$this->___extension_paths = array_unique( array_filter( $this->___extension_paths ) );
+
+		// generate extension path ...
+		$this->___extension_path = implode( \PATH_SEPARATOR, $this->___extension_paths );
 
 		// update include path ...
-		set_include_path(
-			$this->___include_path
-			. \PATH_SEPARATOR
-			. implode( \PATH_SEPARATOR, array_unique( array_filter( $this->___extended_paths ) ) )
-		);
+		set_include_path( $this->___include_path . \PATH_SEPARATOR . $this->___extension_path );
 
 		return $this;
 
 	}
 
+	/**
+	 * Return the path to a resource in the extended Stratus framework.
+	 *
+	 * @param string $relpath
+	 * @param mixed $alt
+	 * @return string
+	 */
+	public function path( $relpath, $alt = false ) {
 
+		// save current include path ...
+		$include_path = get_include_path();
+
+		// set extension path ...
+		set_include_path( $this->___extension_path );
+
+		// determine path // @note $relpath should NEVER begin with a forward slash ('/') !!!
+		$abspath = stream_resolve_include_path( ltrim($relpath, '/\\') );
+
+		// restore include path ...
+		set_include_path( $include_path );
+
+		// return path or alternate ...
+		return ( $abspath ? $abspath : $alt );
+
+	}
+
+	/**
+	 * Project url.
+	 * @var string
+	 */
+	public $___url = null;
+
+	/**
+	 * Fetch extension url.
+	 *
+	 * @param string $relpath
+	 * @param mixed $alt
+	 * @return mixed
+	 */
+	public function url( $relpath = '', $alt = false ) {
+
+		// url not created yet ? create now ...
+		if ( empty($this->___url) ) {
+
+			$this->___url
+			= 'http'
+			. ( $this->array_value($_SERVER, 'HTTPS') ? 's' : '' )
+			. '://'
+			. $this->array_value($_SERVER, 'HTTP_HOST', 'localhost');
+
+		}
+
+		// no relative extension path passed ? return project url ...
+		if ( empty($relpath) ) return $this->___url;
+
+		try {
+
+			// determine absolute path or exception ...
+			$abspath = $this->path($relpath);
+			if ( ! $abspath ) throw new \Exception;
+
+			// determine document root path or exception ...
+			$root = $this->array_value($_SERVER, 'DOCUMENT_ROOT', false);
+			if ( ! $root ) throw new \Exception;
+
+			// mash together url from paths ...
+			$url = str_replace(
+				str_replace('\\', '/', $root),
+				$this->___url,
+				str_replace('\\', '/', $abspath)
+			);
+
+		} catch ( \Exception $e ) {
+
+			$url = $alt;
+
+		}
+
+		return $url;
+	}
+
+####################################
 ### CLASS & FUNCTION AUTOLOADERS ###
+####################################
 
 	/**
 	 * Class autoloader.
@@ -152,19 +247,92 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 		// break names out of namespaces ...
 		$names = explode('\\', strtolower($namespaced));
 
-		// default load path / leave off .php or .inc extension, spl_autoload() takes care of this.
-		$path = 'strato/class/' . end($names);
-
-		// filter the path and autoload ...
-		spl_autoload( $this->filter(
+		/**
+		 * Default autoload path relative to include path.
+		 * @note leave off .php extension, spl_autoload() takes care of this
+		 *
+		 * @since 1.0
+		 *
+		 * @filter stratus:autoload_class_path
+		 * @value string $path
+		 * @param string $namespaced
+		 * @param array $names
+		 */
+		$path = $this->filter(
 			'stratus:autoload_class_path',
-			$path,
+			'strato/class/' . end($names),
 			$namespaced,
 			$names
+		);
+
+		/**
+		 * Manage multiple paths to try autoloading from.
+		 *
+		 * @since 2.0
+		 *
+		 * @filter stratus:autoload_class_paths
+		 * @value array $paths
+		 * @param string $namespaced
+		 * @param array $names
+		 */
+		$paths = $this->filter(
+			'stratus:autoload_class_paths',
+			array( $path ),
+			$namespaced,
+			$names
+		);
+
+		// autoload path string of extensions w/preceding period, separated by commas ...
+		$exts = implode(',', array_map(
+			function( $ext ){
+				return '.' . $ext;
+			},
+			/**
+			 * Manage autoload path extensions to check for.
+			 *
+			 * @since 2.0
+			 *
+			 * @filter stratus:autoload_class_extensions
+			 * @value array $extensions
+			 * @param string $namespaced
+			 * @param array $names
+			 * @param array $paths
+			 */
+			$this->filter(
+				'stratus:autoload_class_extensions',
+				array('php'),
+				$namespaced,
+				$names,
+				$paths
+			)
 		) );
 
-		// call action after class has been loaded ...
-		$this->action('stratus:autoloaded_class', $namespaced, $names);
+		// attempt to autoload from one of array of paths ...
+		do {
+
+			$path = current($paths);
+
+			spl_autoload( $path, $exts );
+
+			// @note ensure class_exists( autoload = false ) or infinity loop will result !
+			if ( $success = class_exists($namespaced, false) ) break;
+
+		} while ( next($paths) );
+
+		/**
+		 * After class has been successfully loaded (or not).
+		 *
+		 * @since 1.0
+		 * @since 2.0
+		 *	- added $path, $success parameters
+		 *
+		 * @action 'stratus:autoloaded_class'
+		 * @param string $namespaced
+		 * @param array $names
+		 * @param string $path
+		 * @param bool $success
+		 */
+		$this->action('stratus:autoloaded_class', $namespaced, $names, $path, $success);
 
 	}
 
@@ -352,10 +520,18 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 	/**
 	 * MAGIC __get()
 	 */
-	public function __get( $key ) {
+	public function __get( $key = null ) {
 
 		// get set value or default fallback ...
-		$value = ( $this->__isset($key) ? $this->___data[ $key ] : $this->___default );
+		$value = (
+			is_null($key)
+			? $this->___data
+			: (
+				$this->__isset($key)
+				? $this->___data[ $key ]
+				: $this->___default
+			)
+		);
 
 		// reset default ...
 		$this->___default = null;
@@ -371,7 +547,7 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 	 * @param mixed $alt
 	 * @return mixed
 	 */
-	public function get( $key, $alt = null ) {
+	public function get( $key = null, $alt = null ) {
 		$this->___default = $alt;
 		return $this->__get($key);
 	}
@@ -448,7 +624,7 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 
 	/**
 	 * Returns a property reference.
-	 * @syntax $ref =& {optimera}->ref('property', 'init value');
+	 * @syntax $ref =& {stratus}->ref('property', 'init value');
 	 *
 	 * @param string $key (optional, default null)
 	 *	- if omitted, the entire properties data array will be returned
@@ -469,8 +645,9 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 
 	}
 
-
-### ACTION HOOKS ###
+#############################
+### FILTER & ACTION HOOKS ###
+#############################
 
 	/**
 	 * Action hooks.
@@ -569,10 +746,6 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 		return $this;
 	}
 
-
-
-
-### FILTER HOOKS ###
 
 	/**
 	 * Array of filter hooks.
@@ -673,7 +846,7 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
  * Extended Stratus super class inc/traits.
  * @see strato/module/README.md
  */
-if ( !class_exists(__NAMESPACE__.'\Stratus') ) {
+if ( ! class_exists(__NAMESPACE__.'\Stratus') ) {
 
 	// presume unsuccessful ...
 	$success = false;
@@ -689,7 +862,7 @@ if ( !class_exists(__NAMESPACE__.'\Stratus') ) {
 			'%s%sburningmoth-stratus-%s-%u.tmp',
 			sys_get_temp_dir(),
 			\DIRECTORY_SEPARATOR,
-			constant(__NAMESPACE__.'\Stratus\VERSION'),
+			Mutatus::VERSION,
 			crc32( __FILE__ . print_r($_ENV['STRATUS_TRAITS'], true) )
 		);
 
@@ -738,9 +911,6 @@ if ( !class_exists(__NAMESPACE__.'\Stratus') ) {
 							continue;
 						}
 
-						// determine operator ...
-						$op = false;
-
 						// valid trait ? override ...
 						if ( trait_exists($trait_b) ) {
 							$op = 'insteadof';
@@ -751,7 +921,10 @@ if ( !class_exists(__NAMESPACE__.'\Stratus') ) {
 						elseif ( $is_method($trait_b) ) $op = 'as';
 
 						// report error ...
-						else trigger_error(sprintf('"%s" is neither a valid trait nor method name!', $trait_b), \E_USER_WARNING);
+						else {
+							$op = false;
+							trigger_error(sprintf('"%s" is neither a valid trait nor method name!', $trait_b), \E_USER_WARNING);
+						}
 
 						// format conflict resolution ...
 						if ( $op ) $resolves[] = sprintf('%s::%s %s %s;', $trait_a, $method, $op, $trait_b);
