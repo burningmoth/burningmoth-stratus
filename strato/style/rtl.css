@@ -1,0 +1,14 @@
+/**
+ * RTL rules/overrides - affects reset, layout and wordpress styles only.
+ * @see: https://codex.wordpress.org/Right_to_Left_Language_Support
+ * #system localize
+ * @todo Complete with a tool (probably w/javascript via I/O) when tranlated to a rtl language.
+ */
+@media all {
+
+	body {
+		direction: rtl;
+		unicode-bidi: embed;
+	}
+
+}

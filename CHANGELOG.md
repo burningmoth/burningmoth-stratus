@@ -1,6 +1,6 @@
 # STRATUS CHANGELOG #
 
-### 2018 Nov 22 / Version 2.0
+### 2018 Nov 25 / Version 2.0
 - Removed: all WordPress-specific functionality.
 - Added: native action and filter hooks.
 

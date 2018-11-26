@@ -1,6 +1,6 @@
 <?php
 /**
- * ALL things HTML processing.
+ * Stratus Mod for aLL things HTML processing.
  */
 namespace BurningMoth\Stratus;
 
