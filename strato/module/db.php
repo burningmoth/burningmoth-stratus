@@ -110,43 +110,38 @@ trait DB_Module {
 	public function db_prepare( $sql, array $vars = array() ) {
 
 		// prepare variables ...
-		if ( $vars ) {
+		if ( $vars ) array_walk($vars, function( &$value, $key, $tratus ){
 
-			array_walk($vars, function( &$value, $key, $tratus ){
+			switch ( $key[0] ) {
+				// force integer value ...
+				case '#':
+					$value = intval($value);
+					break;
 
-				switch ( $key[0] ) {
-					// force integer value ...
-					case '#':
-						$value = intval($value);
-						break;
+				// force floating point ...
+				case '%':
+					$value = floatval($value);
+					break;
 
-					// force floating point ...
-					case '%':
-						$value = floatval($value);
-						break;
+				// return quoted, escaped string ... :var is PDO style
+				case ':':
+					$value = $tratus->db_quote($value);
+					break;
 
-					// return quoted, escaped string ... :var is PDO style
-					case ':':
-						$value = $tratus->db_quote($value);
-						break;
+				// return escaped string, unquoted ...
+				case '!':
+					$value = $tratus->db_escape($value);
+					break;
 
-					// return escaped string, unquoted ...
-					case '!':
-						$value = $tratus->db_escape($value);
-						break;
+				// do nothing to process the value, send as-is
+				case '?':
+				default:
+					break;
+			}
 
-					// do nothing to process the value, send as-is
-					case '?':
-					default:
-						break;
-				}
-
-			}, $this);
-
-		}
+		}, $this);
 
 		return trim(strtr($sql, $vars));
-
 	}
 
 

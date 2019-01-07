@@ -37,6 +37,28 @@ $tratus.isNumber = function( value ){
 }
 
 /**
+ * Test whether a value can be parsed as a number.
+ * @param mixed value
+ * @return bool
+ */
+$tratus.isNumeric = function( value ){
+	return !(
+		Number.isNaN
+		? Number.isNaN(value)
+		: isNaN(value)
+	);
+}
+
+/**
+ * Test whether a value is boolean or not.
+ * @param mixed value
+ * @return bool
+ */
+$tratus.isBoolean = function(value){
+	return ( typeof value == 'boolean' );
+}
+
+/**
  * Test whether a value is an object
  * @param mixed value
  * @return bool
@@ -51,22 +73,98 @@ $tratus.isObject = function( value ){
 	);
 }
 
+/**
+ * Test whether a value is a function or not.
+ * @param mixed value
+ * @return bool
+ */
+$tratus.isFunction = function( value ){
+	return ( typeof value == 'function' );
+}
+
+/**
+ * Test whether a value has been defined
+ * @param mixed value
+ * @return bool
+ */
+$tratus.isDefined = function( value ){
+	return (
+		value !== null
+		&& typeof value != 'undefined'
+	);
+}
+
+/**
+ * Test whether value is scalar.
+ * @param mixed value
+ * @return bool
+ */
+$tratus.isScalar = function( value ){
+	return (
+		this.isString(value)
+		|| this.isNumber(value)
+		|| this.isBoolean(value)
+	);
+}
+
+/**
+ * Test if a value is "binary", aka. a string containing nonprintable characters that blow up base64 and other string functions.
+ * @see https://stackoverflow.com/a/1677660
+ * @param mixed value
+ * @return bool
+ */
+$tratus.isBinary = function( value ){
+	return (
+		this.isString(value)
+		&& /[\x00-\x1F]/.test(value)
+	);
+}
+
+/**
+ * Test if a value is "bytes" (ArrayBuffer)
+ * @param mixed value
+ * @return bool
+ */
+$tratus.isBytes = function( value){
+	return ( value instanceof ArrayBuffer );
+}
+
+
 
 /* ################## *
  * ### FORMATTING ### *
  * ################## */
 
 /**
- * Unicode-safe versions of btoa() and atob() ( base64 encoding and decoding respectively ).
- * @author Johan Sundström
+ * String base64 [En|De]code methods. Unicode safe.
+ * @note Check for binary string, these can blow up the *URIComponent functions.
  * @see http://ecmanaut.blogspot.com/2006/07/encoding-decoding-utf8-in-javascript.html
  */
-$tratus.base64encode = function( str ) {
-	return window.btoa(unescape(encodeURIComponent(str)));
+$tratus.base64Encode = function( str ) {
+	if ( ! this.isBinary(str) ) str = unescape(encodeURIComponent(str));
+	return window.btoa(str);
 }
 
-$tratus.base64decode = function( str ) {
-	return decodeURIComponent(escape(window.atob(str)));
+$tratus.base64Decode = function( str ) {
+	str = window.atob(str);
+	if ( ! this.isBinary(str) ) str = decodeURIComponent(escape(str));
+	return str;
+}
+
+/**
+ * Converting between String and 'bytes' (BufferSource)
+ * @note TextEncode and TextDecode worked in some cases but not others (crypto namely)!
+ * @see https://stackoverflow.com/a/21797381
+ * @see https://stackoverflow.com/questions/6965107/converting-between-strings-and-arraybuffers
+ */
+$tratus.bytesToString = function( buf ){
+	return String.fromCharCode.apply(null, new Uint8Array(buf));
+}
+
+$tratus.stringToBytes = function( str ){
+    var bytes = new Uint8Array( str.length );
+    for ( var i = 0; i < str.length; i++ ) bytes[i] = str.charCodeAt(i);
+    return bytes;
 }
 
 
@@ -175,12 +273,12 @@ $tratus.Hook = function( hook ){
 					? matches.pop()
 
 					// anon function, base64 encode ...
-					: $tratus.base64encode( key )
+					: $tratus.base64Encode(key)
 				);
 			}
 
 			// base64 encode ...
-			else key = $tratus.base64encode( key );
+			else key = $tratus.base64Encode(key);
 
 		}
 
@@ -297,34 +395,26 @@ $tratus.Hook = function( hook ){
 		// get arguments ...
 		args = Function.args(arguments);
 
-		// default at least one null argument ...
-		if ( args.length < 1 ) args.push(null);
+		// default at least one undefined argument ...
+		if ( args.length < 1 ) args.push(undefined);
 
-		return (
-			// has callbacks ? ...
-			callbacks.length
-			// sort, reduce and return value from callbacks ...
-			? callbacks.sort(function( a, b ){
-				return (
-					a.order == b.order
-					? 0
-					: (
-						a.order > b.order
-						? 1
-						: -1
-					)
-				);
-			}).reduce(function( callback ){
-				try {
-					return args[0] = callback.exec( args );
-				} catch ( err ) {
-					console.error(err);
-					return args[0];
-				}
-			}, callbacks[0] )
-			// return value from first argument ...
-			: args[0]
-		);
+		// put through ordered callbacks ...
+		if ( callbacks.length ) callbacks.sort(function( a, b ){
+			return (
+				a.order == b.order
+				? 0
+				: (
+					a.order > b.order
+					? 1
+					: -1
+				)
+			);
+		}).forEach(function( callback ){
+			args[0] = callback.exec( args );
+		});
+
+		// return first argument ...
+		return args[0];
 
 	};
 

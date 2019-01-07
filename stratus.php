@@ -35,7 +35,7 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 	 * Stratus version
 	 * @var string|int|float
 	 */
-	const VERSION = 2;
+	const VERSION = '2';
 
 	/**
 	 * Stratus directory
@@ -672,8 +672,11 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 	 * @return self
 	 */
 	public function actionOnce( $action ) {
-		if ( $this->didAction($action) == 0 ) return $this->action( $action );
-		return $this;
+		return (
+			$this->didAction($action) == 0
+			? call_user_func_array([ $this, $action], func_get_args())
+			: $this
+		);
 	}
 
 	/**

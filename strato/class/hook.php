@@ -64,7 +64,10 @@ class Hook {
 			return implode('::', $callback);
 		}
 		elseif ( is_object($callback) ) {
-			return get_class($callback) . strval( count($this->callbacks) + microtime(true) );
+			ob_start();
+			debug_zval_dump($callback);
+			if ( preg_match('/#\d+/', ob_get_clean(), $matches) ) return get_class($callback) . '#' . current($matches);
+			else return get_class($callback) . '#' . strval( count($this->callbacks) + microtime(true) );
 		}
 		return (string) $callback;
 	}
@@ -85,7 +88,7 @@ class Hook {
 		) $callback = [ $tratus, $callback ];
 
 		// valid callback ? success ...
-		if ( is_callable($callback) ) {
+		if ( is_callable($callback, true) ) {
 
 			// add callback ...
 			$this->callbacks[ $this->callbackToString( $callback ) ] = [

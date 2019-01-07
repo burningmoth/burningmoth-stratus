@@ -21,7 +21,7 @@ function cookie_set( $key, $value = null, array $params = [] ) {
 
 	// headers sent ? exit ... no way this can work ...
 	if ( headers_sent() ) {
-		trigger_error(__FUNCTION__'(): failed! Headers already sent!', \E_USER_WARNING);
+		trigger_error(__FUNCTION__.'(): failed! Headers already sent!', \E_USER_WARNING);
 		return false;
 	}
 
@@ -63,7 +63,10 @@ function cookie_set( $key, $value = null, array $params = [] ) {
 		elseif ( ! is_integer($expire) ) $expire = 0;
 
 		// expire is less than time ? assume we're adding to current seconds ...
-		elseif ( $expire < time() ) $expire += time();
+		elseif (
+			$expire > 0
+			&& $expire < time()
+		) $expire += time();
 
 		// update cookie variable ...
 		$_COOKIE[ $key ] = $value;
