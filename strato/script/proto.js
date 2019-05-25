@@ -102,3 +102,34 @@ if ( ! Array.includes ) Array.prototype.includes = function(  val ){
 		: this
 	).indexOf(val) !== -1;
 }
+
+/**
+ * String.substrCount()
+ * Counts the number of occurrences of a substr w/in a string.
+ */
+if ( ! String.substrCount ) String.prototype.substrCount = function( str ){
+	return this.split(str).length - 1;
+}
+
+/**
+ * HTML encode entities.
+ */
+if ( ! String.htmlEncode) String.prototype.htmlEncode = function(){
+	var buf = [];
+	for ( var i = this.length-1; i >= 0; i-- ) buf.unshift(['&#', this[i].charCodeAt(), ';'].join(''));
+	return buf.join('');
+}
+
+/**
+ * HTML decode entities.
+ */
+if ( ! String.htmlDecode ) String.prototype.htmlDecode = function(){
+	return this.replace(
+		/&#(\d+);/g,
+		function(match, dec){
+			return String.fromCharCode(dec);
+		}
+	);
+}
+
+

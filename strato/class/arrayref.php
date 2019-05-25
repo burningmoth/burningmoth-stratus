@@ -1,15 +1,18 @@
 <?php
 namespace BurningMoth\Stratus;
 /**
-* Interface with an variable array via reference as though it were an object.
-*/
-class ArrayRef {
+ * Interface with an variable array via reference as though it were an object.
+ * @since 1.0
+ * @since 2.1
+ * 	- implements ArrayAccess, Countable and Iterator interfaces to behave more like an array if necessary
+ */
+class ArrayRef implements \ArrayAccess, \Countable, \Iterator {
 
 	/**
 	 * Array data reference.
 	 * @var array
 	 */
-	private $___data;
+	public $___data;
 
 	/**
 	 * __CONSTRUCT
@@ -58,7 +61,7 @@ class ArrayRef {
 	public function exists( $key ) {
 		return (
 			array_key_exists($key, $this->___data)
-			&& !is_null( $this->___data[ $key ] )
+			&& ! is_null( $this->___data[ $key ] )
 		);
 	}
 
@@ -90,8 +93,16 @@ class ArrayRef {
 	/**
 	 * Retrieve a keyed value or alternate.
 	 */
-	public function get( $key, $alt = null ) {
-		return ( $this->exists($key) ? $this->___data[ $key ] : $alt );
+	public function get( $key = null, $alt = null ) {
+		return (
+			empty($key)
+			? $this->___data
+			: (
+				$this->exists($key)
+				? $this->___data[ $key ]
+				: $alt
+			)
+		);
 	}
 
 	/**
@@ -132,6 +143,59 @@ class ArrayRef {
 		}
 
 		return $this->___data;
+	}
+
+
+	/**
+	 * Implementation of ArrayAccess interface methods.
+	 * @since 2.1
+	 */
+	public function offsetExists( $offset ){
+		return $this->exists($offset);
+	}
+
+	public function offsetGet( $offset ){
+		return $this->get($offset);
+	}
+
+	public function offsetSet( $offset, $value ){
+		$this->set($offset, $value);
+	}
+
+	public function offsetUnset( $offset ){
+		$this->delete($offset);
+	}
+
+	/**
+	 * Implementation of Countable interface methods.
+	 * @since 2.1
+	 */
+	public function count(){
+		return count($this->___data);
+	}
+
+	/**
+	 * Implementation of Interator interface methods.
+	 * @since 2.1
+	 */
+	public function current(){
+		return current($this->___data);
+	}
+
+	public function key(){
+		return key($this->___data);
+	}
+
+	public function next(){
+		next($this->___data);
+	}
+
+	public function rewind(){
+		reset($this->___data);
+	}
+
+	public function valid(){
+		return $this->key() !== null;
 	}
 
 }

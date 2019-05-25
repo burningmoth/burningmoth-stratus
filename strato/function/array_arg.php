@@ -10,7 +10,7 @@ namespace BurningMoth\Stratus;
 function array_arg( $args, $key, $alt = null ) {
 
 	// not array ? return alternate ...
-	if ( !is_array($args) ) return $alt;
+	if ( ! is_array($args) ) return $alt;
 
 	// run through array_values() to reset numeric indexes ...
 	$args = array_values($args);

@@ -35,7 +35,7 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 	 * Stratus version
 	 * @var string|int|float
 	 */
-	const VERSION = '2';
+	const VERSION = '2.1';
 
 	/**
 	 * Stratus directory
@@ -177,60 +177,6 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 
 	}
 
-	/**
-	 * Project url.
-	 * @var string
-	 */
-	public $___url = null;
-
-	/**
-	 * Fetch extension url.
-	 *
-	 * @param string $relpath
-	 * @param mixed $alt
-	 * @return mixed
-	 */
-	public function url( $relpath = '', $alt = false ) {
-
-		// url not created yet ? create now ...
-		if ( empty($this->___url) ) {
-
-			$this->___url
-			= 'http'
-			. ( $this->array_value($_SERVER, 'HTTPS') ? 's' : '' )
-			. '://'
-			. $this->array_value($_SERVER, 'HTTP_HOST', 'localhost');
-
-		}
-
-		// no relative extension path passed ? return project url ...
-		if ( empty($relpath) ) return $this->___url;
-
-		try {
-
-			// determine absolute path or exception ...
-			$abspath = $this->path($relpath);
-			if ( ! $abspath ) throw new \Exception;
-
-			// determine document root path or exception ...
-			$root = $this->array_value($_SERVER, 'DOCUMENT_ROOT', false);
-			if ( ! $root ) throw new \Exception;
-
-			// mash together url from paths ...
-			$url = str_replace(
-				str_replace('\\', '/', $root),
-				$this->___url,
-				str_replace('\\', '/', $abspath)
-			);
-
-		} catch ( \Exception $e ) {
-
-			$url = $alt;
-
-		}
-
-		return $url;
-	}
 
 ####################################
 ### CLASS & FUNCTION AUTOLOADERS ###

@@ -32,9 +32,9 @@ function cookie_set( $key, $value = null, array $params = [] ) {
 
 		// standard setcookie() parameters ...
 		'expire'	=> 0,
-		'domain'	=> $tratus->array_value($_SERVER, 'HTTP_HOST', ''),
+		'domain'	=> $tratus->server_arg('HTTP_HOST', ''),
 		'path'		=> '/',
-		'secure'	=> $tratus->array_value($_SERVER, 'HTTPS', false),
+		'secure'	=> $tratus->server_arg('HTTPS', false),
 		'httponly'	=> false,
 
 		// set global domain w/preceding period ?
@@ -83,7 +83,7 @@ function cookie_set( $key, $value = null, array $params = [] ) {
 		elseif ( $global > 0 ) $global *= -1;
 
 		// modify domain ...
-		$domain = '.' . implode('.', array_slice(explode('.', $domain), $global));
+		$domain = $tratus->cookie_domain($domain, $global);
 
 	}
 

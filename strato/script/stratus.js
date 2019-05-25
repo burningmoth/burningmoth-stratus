@@ -393,7 +393,10 @@ $tratus.Hook = function( hook ){
 		callbacks = Object.values(this.callbacks),
 
 		// get arguments ...
-		args = Function.args(arguments);
+		args = Function.args(arguments),
+
+		// value that gets returned ...
+		value;
 
 		// default at least one undefined argument ...
 		if ( args.length < 1 ) args.push(undefined);
@@ -410,7 +413,7 @@ $tratus.Hook = function( hook ){
 				)
 			);
 		}).forEach(function( callback ){
-			args[0] = callback.exec( args );
+			if ( ( value = callback.exec( args ) ) !== undefined ) args[0] = value;
 		});
 
 		// return first argument ...
@@ -471,7 +474,7 @@ $tratus.action = function( hook ){
  * @param hook
  * @param ...
  *	- additional parameters to pass the hook callbacks
- * @return int
+ * @return $tratus
  * 	- number of times the action hook has been called
  */
 $tratus.trigger = function( hook ){
@@ -481,5 +484,5 @@ $tratus.trigger = function( hook ){
 		? hook.exec()
 		: hook.exec.apply(hook, Function.args(arguments).slice(1))
 	);
-	return hook.calls;
+	return this;
 }
