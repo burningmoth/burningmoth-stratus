@@ -34,7 +34,7 @@ class Hook {
 	 * @param string $id
 	 */
 	public function __construct( $id ) {
-		$this->id = $id;
+		$this->id = (string) $id;
 	}
 
 	/**
@@ -55,21 +55,45 @@ class Hook {
 
 	/**
 	 * Return a string value from a callable to use as a key.
-	 * @param string|array $callback
+	 * @param string|object|array $callback
 	 * @return string
 	 */
 	public function callbackToString( $callback ) {
+
+		// array ? format Class::method ...
 		if ( is_array($callback) ) {
 			if ( is_object( $callback[0] ) ) $callback[0] = get_class($callback[0]);
-			return implode('::', $callback);
+			$callback_name = implode('::', array_map('strval', $callback));
 		}
+
+		// object ? format Class#objectNumber ....
 		elseif ( is_object($callback) ) {
-			ob_start();
-			debug_zval_dump($callback);
-			if ( preg_match('/#\d+/', ob_get_clean(), $matches) ) return get_class($callback) . '#' . current($matches);
-			else return get_class($callback) . '#' . strval( count($this->callbacks) + microtime(true) );
+
+			// start name ...
+			$callback_name = get_class($callback) . '#';
+
+			// quick and clean ? ...
+			if ( function_exists('spl_object_id') ) $callback_name .= spl_object_id($callback);
+
+			// no, gotta get dirty !
+			else {
+
+				ob_start();
+				debug_zval_dump($callback);
+				$callback_name .= (
+					preg_match('/#\d+/', ob_get_clean(), $matches)
+					? current($matches)
+					: strval( count($this->callbacks) + microtime(true) )
+				);
+
+			}
 		}
-		return (string) $callback;
+
+		// ensure anything else is a string ...
+		else $callback_name = (string) $callback;
+
+		// return callback name ...
+		return $callback_name;
 	}
 
 	/**
@@ -81,7 +105,10 @@ class Hook {
 
 		global $tratus;
 
-		// callback is word ? assume to be an Optimera callback ...
+		// create callback name before validating/modifying callback ...
+		$callback_name = $this->callbackToString($callback);
+
+		// callback is word ? assume to be an Stratus callback ...
 		if (
 			is_string($callback)
 			&& preg_match('/^\w+$/', $callback)
@@ -91,12 +118,12 @@ class Hook {
 		if ( is_callable($callback, true) ) {
 
 			// add callback ...
-			$this->callbacks[ $this->callbackToString( $callback ) ] = [
-				'callback'	=> $callback,
-				'order'		=> $order,
+			$this->callbacks[ $callback_name ] = [
+				'callback' => $callback,
+				'order' => $order,
 			];
 
-			// reset sorted / will resort when called ...
+			// reset sorted / will re-sort when called ...
 			$this->sorted = false;
 
 		}
@@ -132,7 +159,7 @@ class Hook {
 	public function __invoke( $args ) {
 
 		// sort if not sorted ...
-		if ( !$this->sorted ) $this->sorted = uasort($this->callbacks, [ $this, 'array_sort_callbacks' ]);
+		if ( ! $this->sorted ) $this->sorted = uasort($this->callbacks, [ $this, 'array_sort_callbacks' ]);
 
 		// increment # of calls ...
 		$this->calls++;
