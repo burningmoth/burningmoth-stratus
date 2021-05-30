@@ -87,6 +87,7 @@ class Hook {
 				);
 
 			}
+
 		}
 
 		// ensure anything else is a string ...
@@ -108,20 +109,11 @@ class Hook {
 		// create callback name before validating/modifying callback ...
 		$callback_name = $this->callbackToString($callback);
 
-		// callback is word ? assume to be an Stratus callback ...
-		if (
-			is_string($callback)
-			&& preg_match('/^\w+$/', $callback)
-		) $callback = [ $tratus, $callback ];
-
 		// valid callback ? success ...
-		if ( is_callable($callback, true) ) {
+		if ( $callback = $tratus->validCallback($callback) ) {
 
 			// add callback ...
-			$this->callbacks[ $callback_name ] = [
-				'callback' => $callback,
-				'order' => $order,
-			];
+			$this->callbacks[ $callback_name ] = compact('callback', 'order');
 
 			// reset sorted / will re-sort when called ...
 			$this->sorted = false;
@@ -129,7 +121,7 @@ class Hook {
 		}
 
 		// invalid ! fail !
-		else trigger_error(sprintf('"%s" is not a valid callback!', $callback), E_USER_WARNING);
+		else trigger_error(sprintf('"%s" is not a valid callback!', $callback_name), \E_USER_WARNING);
 	}
 
 	/**

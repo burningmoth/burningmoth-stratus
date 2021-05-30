@@ -332,6 +332,31 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 	}
 
 	/**
+	 * Format a simple callback to work w/Stratus framework.
+	 * @param mixed $callback
+	 * @return callable|null
+	 */
+	public function validCallback( $callback ) {
+
+		// callback is word ? assume to be an Stratus callback ...
+		if (
+			is_string($callback)
+			&& preg_match('/^\w+$/', $callback)
+		) $callback = [ $this, $callback ];
+
+		// callback is static class function call w/o namespace ? assume Stratus namespace ...
+		elseif (
+			is_string($callback)
+			&& preg_match('/^\w+::\w+$/', $callback)
+		) $callback = __NAMESPACE__ . '\\Stratus\\' . $callback;
+
+		// not valid callback syntax ? return false ...
+		elseif ( ! is_callable($callback, true) ) $callback = null;
+
+		return $callback;
+	}
+
+	/**
 	 * __callStatic()
 	 * Loads dynamic or loaded functions from a static context w/o throwing pesky errors.
 	 * @syntax use BurningMoth\Stratus as Strat; Strat::us_[name of a dynamic or loaded function](...);
