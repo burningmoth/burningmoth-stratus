@@ -4,6 +4,11 @@
  */
 namespace BurningMoth;
 
+// set default timezone ...
+date_default_timezone_set('UTC');
+
+// set default encoding ...
+if ( function_exists('mb_internal_encoding') ) mb_internal_encoding('UTF-8');
 
 /**
  * Load any registered modules.
@@ -13,15 +18,63 @@ namespace BurningMoth;
 if (
 	isset($_ENV['STRATUS_MODULES'])
 	&& is_array($_ENV['STRATUS_MODULES'])
-) array_walk($_ENV['STRATUS_MODULES'], function( $path ){
+) {
+	// predefined module names ...
+	$mods = [ 'db', 'html' ];
+	foreach ( $_ENV['STRATUS_MODULES'] as $path ) {
 
-	// path is a file name only ? assume it refers to a module in this repo ...
-	if ( preg_match('/^[\w-]+$/', $path) ) $path = 'strato/module/' . $path . '.php';
+		// path is name referring to module in this repo ? rewrite path ...
+		if ( in_array($path, $mods) ) $path = 'strato/module/' . $path . '.php';
 
-	// include module ...
-	include $path;
+		// include module ...
+		require $path;
 
-});
+	}
+}
+
+// define any undefined constants ...
+foreach ( [
+
+	/**
+	 * Stratus version
+	 * @var string|int|float
+	 */
+	'VERSION' => '2.0',
+
+	/**
+	 * Root directory of Stratus class
+	 * @var string
+	 */
+	'DIR' => __DIR__,
+
+	/**
+	 * Memory units (bytes)
+	 * @see https://convertlive.com/c/convert/data-size
+	 * @since 2.1
+	 * @var int
+	 */
+	'KILOBYTE' => 1024,
+	'MEGABYTE' => 1048576,
+	'GIGABYTE' => 1073741824,
+	'TERABYTE' => 1099511627776,
+	'PETABYTE' => 1125899906842624,
+
+	/**
+	 * Time units (seconds)
+	 * @see https://convertlive.com/c/convert/time
+	 * @since 2.1
+	 * @var int
+	 */
+	'SECONDS_MINUTE' => 60,
+	'SECONDS_HOUR' => 3600,
+	'SECONDS_DAY' => 86400,
+	'SECONDS_WEEK' => 604800, // 7 days
+	'SECONDS_MONTH' => 2629800, // solar month = 1 year/12 months
+	'SECONDS_YEAR' => 31557600,
+
+] as $constant => $value ) if (
+	! defined( $constant = __NAMESPACE__.'\\Stratus\\'.$constant )
+) define($constant, $value);
 
 
 /**
@@ -35,13 +88,13 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 	 * Stratus version
 	 * @var string|int|float
 	 */
-	const VERSION = '2.1';
+	const VERSION = namespace\Stratus\VERSION;
 
 	/**
 	 * Stratus directory
 	 * @var string
 	 */
-	const DIR = __DIR__;
+	const DIR = namespace\Stratus\DIR;
 
 	/**
 	 * Static method returning the $stratus global.
@@ -78,7 +131,7 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 
 	/**
 	 * __construct()
-	 * @note Private so that only ::us() can create the $stratus instance.
+	 * @note Private so that only ::us() can create the $tratus instance.
 	 */
 	private function __construct() {
 
@@ -88,6 +141,26 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 		 * @see http://stackoverflow.com/questions/16733789/php-autoloader-not-working#16733947
 		 */
 		spl_autoload_register([ $this->extend(__DIR__), '___autoLoadClass' ]);
+
+		/**
+		 * Register error and exception handlers.
+		 */
+		$this->___prev_error_handler = set_error_handler([ $this, '___errorHandler' ], \E_ALL);
+		$this->___prev_exception_handler = set_exception_handler([ $this, 'catchException' ]);
+
+	}
+
+	/**
+	 * __destruct()
+	 */
+	public function __destruct() {
+
+		// unregister autoloader ...
+		spl_autoload_unregister([ $this, '___autoLoadClass' ]);
+
+		// restore error and exception handlers ...
+		restore_error_handler();
+		restore_exception_handler();
 
 	}
 
@@ -99,8 +172,9 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 		return $this;
 	}
 
-
+##################
 ### EXTENSIONS ###
+##################
 
 	/**
 	 * Original include path.
@@ -812,6 +886,58 @@ if ( ! class_exists(__NAMESPACE__.'\Mutatus') ) { abstract class Mutatus {
 		return $this;
 	}
 
+
+	####################################
+	### ERROR AND EXCEPTION HANDLING ###
+	####################################
+
+	/**
+	 * Previously set error handler.
+	 * @var callable|null
+	 */
+	public $___prev_error_handler = null;
+
+	/**
+	 * Previously set exception handler.
+	 * @var callable|null
+	 */
+	public $___prev_exception_handler = null;
+
+	/**
+	 * Error handler. Catches, converts and throws errors to catchException()
+	 * @see set_error_handler()
+	 */
+	public function ___errorHandler( $code = 0, $message = '', $file = '', $line = 0 ){
+
+		// error is being suppressed via @ operator, do not continue with normal error handling ...
+		if ( error_reporting() === 0 ) return;
+
+		// exception action(s) are set ? format and pass exception object to exception handler ...
+		if ( $this->hasAction('exception') ) $this->catchException( new \Exception($message, $code) );
+
+		// prev error handler set ? let's play nice and pass error info to it ...
+		if ( $this->___prev_error_handler ) call_user_func_array($this->___prev_error_handler, func_get_args());
+
+		// return false to continue w/normal message handling ...
+		return false;
+	}
+
+	/**
+	 * Exception Handler.
+	 * @see set_exception_handler
+	 */
+	public function catchException( $e ){
+
+		/**
+		 * @action exception
+		 * @param Exception $e
+		 */
+		$this->action('exception', $e);
+
+		// previous exception handler set ? let's play nice and pass exception info to it ...
+		if ( $this->___prev_exception_handler ) call_user_func($this->___prev_exception_handler, $e);
+
+	}
 
 } }
 
